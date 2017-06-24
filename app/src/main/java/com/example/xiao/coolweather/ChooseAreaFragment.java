@@ -2,9 +2,9 @@ package com.example.xiao.coolweather;
 
 import android.app.Fragment;
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,6 +19,7 @@ import com.example.xiao.coolweather.db.City;
 import com.example.xiao.coolweather.db.County;
 import com.example.xiao.coolweather.db.Province;
 import com.example.xiao.coolweather.util.HttpUtil;
+import com.example.xiao.coolweather.util.LogUtil;
 import com.example.xiao.coolweather.util.Utility;
 
 import org.litepal.crud.DataSupport;
@@ -39,7 +40,7 @@ import okhttp3.Response;
 public class ChooseAreaFragment extends Fragment {
     public static final int LEVEL_PROVINCE = 0;
     public static final int LEVEL_CITY = 1;
-    public static final int LEVEL_COUNTRY = 2;
+    public static final int LEVEL_COUNTY = 2;
 
     private ProgressDialog progressDialog;
     private TextView titleText;
@@ -99,26 +100,31 @@ public class ChooseAreaFragment extends Fragment {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 if (currentLevel == LEVEL_PROVINCE) {
-                    Log.d("coolweather", "LEVEL_PROVINCE");
                     selectedProvince = provinceList.get(position);
                     queryCities();
                 } else if (currentLevel == LEVEL_CITY) {
-                    Log.d("coolweather", "LEVEL_CITY");
                     selectedCity = cityList.get(position);
                     queryCounties();
+                } else if (currentLevel == LEVEL_COUNTY) {
+                    String weatherId = countyList.get(position).getWeatherId();
+                    Intent intent = new Intent(getActivity(), WeatherActivity.class);
+                    intent.putExtra("weather_id", weatherId);
+                    startActivity(intent);
+                    getActivity().finish();
                 }
             }
         });
         backButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (currentLevel == LEVEL_COUNTRY) {
+                if (currentLevel == LEVEL_COUNTY) {
                     queryCities();
                 } else if (currentLevel == LEVEL_CITY) {
                     queryProvinces();
                 }
             }
         });
+        LogUtil.d("coolweather", "onActivityCreated");
         queryProvinces();
     }
 
@@ -139,7 +145,6 @@ public class ChooseAreaFragment extends Fragment {
             currentLevel = LEVEL_PROVINCE;
         } else {
             String address = "http://guolin.tech/api/china";
-            Log.d("coolweather", "queryProvinces");
             queryFromServer(address, "province");
         }
     }
@@ -162,9 +167,7 @@ public class ChooseAreaFragment extends Fragment {
             currentLevel = LEVEL_CITY;
         } else {
             int provinceCode = selectedProvince.getProvinceCode();
-            Log.d("coolweather", String.valueOf(provinceCode));
             String address = "http://guolin.tech/api/china/" + provinceCode;
-            Log.d("coolweather", "queryCities");
             queryFromServer(address, "city");
         }
     }
@@ -184,12 +187,11 @@ public class ChooseAreaFragment extends Fragment {
             }
             adapter.notifyDataSetChanged();
             listView.setSelection(0);
-            currentLevel = LEVEL_COUNTRY;
+            currentLevel = LEVEL_COUNTY;
         } else {
             int provinceCode = selectedProvince.getProvinceCode();
             int cityCode = selectedCity.getCityCode();
             String address = "http://guolin.tech/api/china/" + provinceCode + "/" + cityCode;
-            Log.d("coolweather", "queryCounties");
             queryFromServer(address, "county");
         }
     }
@@ -199,7 +201,6 @@ public class ChooseAreaFragment extends Fragment {
      */
     private void queryFromServer(String address, final String type) {
         showProgressDialog();
-        Log.d("coolweather", "queryFormServer");
         HttpUtil.sendOkHttpRequest(address, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -207,8 +208,8 @@ public class ChooseAreaFragment extends Fragment {
                 getActivity().runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Log.d("coolweather", "queryFormServer");
                         closeProgressDialog();
+                        LogUtil.d("coolweather", "queryFromServer_onFailure");
                         Toast.makeText(getContext(), "加载失败", Toast.LENGTH_SHORT).show();
                     }
                 });
@@ -216,36 +217,36 @@ public class ChooseAreaFragment extends Fragment {
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
-                Log.d("coolweather", "onResponse");
+                LogUtil.d("coolweather", "queryFromServer_onResponse");
                 String responseText = response.body().string();
                 boolean result = false;
                 if ("province".equals(type)) {
                     result = Utility.handleProvinceResponse(responseText);
-                    Log.d("coolweather", "onResponseprovince");
                 } else if ("city".equals(type)) {
                     result = Utility.handleCityResponse(responseText, selectedProvince.getId());
-                    Log.d("coolweather", "onResponsecity");
                 } else if ("county".equals(type)) {
                     result = Utility.handleCountyResponse(responseText,
                             selectedCity.getId());
-                    Log.d("coolweather", "onResponsecounty");
                 }
                 if (result) {
                     getActivity().runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            Log.d("coolweather", "onResponserunOnUiThread");
                             closeProgressDialog();
                             if ("province".equals(type)) {
+                                LogUtil.d("coolweather", "runOnUiThread_province");
                                 queryProvinces();
                             } else if ("city".equals(type)) {
+                                LogUtil.d("coolweather", "runOnUiThread_city");
                                 queryCities();
                             } else if ("county".equals(type)) {
+                                LogUtil.d("coolweather", "runOnUiThread_county");
                                 queryCounties();
                             }
                         }
                     });
                 }
+                LogUtil.d("coolweather", "null");
             }
         });
     }
